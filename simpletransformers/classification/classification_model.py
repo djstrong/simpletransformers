@@ -1148,11 +1148,19 @@ class ClassificationModel:
             preds = [np.argmax(pred, axis=1) for pred in preds]
             final_preds = []
             for pred_row in preds:
-                mode_pred, counts = mode(pred_row)
-                if len(counts) > 1 and counts[0] == counts[1]:
-                    final_preds.append(args.tie_value)
+                if args.sliding_window_max:
+                    pred_row = pred_row[pred_row > 0]
+                    if pred_row.size == 0:
+                        final_preds.append(0)
+                    else:
+                        mode_pred, counts = mode(pred_row)
+                        final_preds.append(mode_pred[0])
                 else:
-                    final_preds.append(mode_pred[0])
+                    mode_pred, counts = mode(pred_row)
+                    if len(counts) > 1 and counts[0] == counts[1]:
+                        final_preds.append(args.tie_value)
+                    else:
+                        final_preds.append(mode_pred[0])
             preds = np.array(final_preds)
         elif not multi_label and args.regression is True:
             preds = np.squeeze(preds)
