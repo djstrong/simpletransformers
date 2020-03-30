@@ -367,7 +367,7 @@ class ClassificationModel:
 
         if args["wandb_project"]:
             wandb.init(project=args["wandb_project"], config={**args}, **args["wandb_kwargs"])
-            wandb.watch(self.model)
+            wandb.watch(self.model, log=None)
 
         model.train()
         for _ in train_iterator:
