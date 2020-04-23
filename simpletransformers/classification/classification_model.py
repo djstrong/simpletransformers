@@ -1665,6 +1665,8 @@ class ClassificationModel:
         return {metric: values[-1] for metric, values in metric_values.items()}
 
     def _create_training_progress_scores(self, multi_label, **kwargs):
+        import collections
+        return collections.defaultdict(list)
         extra_metrics = {key: [] for key in kwargs}
         if multi_label:
             training_progress_scores = {
