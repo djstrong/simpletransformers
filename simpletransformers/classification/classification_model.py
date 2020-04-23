@@ -488,6 +488,7 @@ class ClassificationModel:
         multi_label=False,
         show_running_loss=True,
         eval_df=None,
+        test_df=None,
         verbose=True,
         **kwargs,
     ):
@@ -779,6 +780,16 @@ class ClassificationModel:
                         training_progress_scores["train_loss"].append(current_loss)
                         for key in results:
                             training_progress_scores[key].append(results[key])
+
+                        test_results, _, _ = self.eval_model(
+                            test_df,
+                            verbose=verbose and args["evaluate_during_training_verbose"],
+                            silent=True,
+                            **kwargs,
+                        )
+                        for key in test_results:
+                            training_progress_scores['test_'+key].append(test_results[key])
+                            
                         report = pd.DataFrame(training_progress_scores)
                         report.to_csv(
                             os.path.join(args.output_dir, "training_progress_scores.csv"), index=False,
@@ -868,6 +879,13 @@ class ClassificationModel:
                 training_progress_scores["train_loss"].append(current_loss)
                 for key in results:
                     training_progress_scores[key].append(results[key])
+
+                test_results, _, _ = self.eval_model(
+                    test_df, verbose=verbose and args["evaluate_during_training_verbose"], silent=True, **kwargs
+                )
+                for key in results:
+                    training_progress_scores['test_'+key].append(test_results[key])
+                
                 report = pd.DataFrame(training_progress_scores)
                 report.to_csv(os.path.join(args.output_dir, "training_progress_scores.csv"), index=False)
 
