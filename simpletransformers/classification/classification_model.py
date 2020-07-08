@@ -549,7 +549,7 @@ class ClassificationModel:
 
                         test_results, _, _ = self.eval_model(
                             test_df,
-                            verbose=verbose and args["evaluate_during_training_verbose"],
+                            verbose=verbose and args.evaluate_during_training_verbose,
                             silent=True,
                             **kwargs,
                         )
@@ -636,7 +636,7 @@ class ClassificationModel:
                     training_progress_scores[key].append(results[key])
 
                 test_results, _, _ = self.eval_model(
-                    test_df, verbose=verbose and args["evaluate_during_training_verbose"], silent=True, **kwargs
+                    test_df, verbose=verbose and args.evaluate_during_training_verbose, silent=True, **kwargs
                 )
                 for key in results:
                     training_progress_scores['test_'+key].append(test_results[key])
