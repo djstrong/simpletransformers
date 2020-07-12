@@ -114,6 +114,7 @@ class ClassificationArgs(ModelArgs):
     lazy_text_column: int = 0
     regression: bool = False
     sliding_window: bool = False
+    sliding_window_max: bool = False
     stride: float = 0.8
     tie_value: int = 1
 
