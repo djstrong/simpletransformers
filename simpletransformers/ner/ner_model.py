@@ -188,7 +188,7 @@ class NERModel:
             self.args.wandb_project = None
 
     def train_model(
-        self, train_data, output_dir=None, show_running_loss=True, args=None, eval_data=None, verbose=True, **kwargs
+        self, train_data, output_dir=None, show_running_loss=True, args=None, eval_data=None, test_data=None, verbose=True, **kwargs
     ):
         """
         Trains the model using 'train_data'
@@ -244,14 +244,14 @@ class NERModel:
         os.makedirs(output_dir, exist_ok=True)
 
         global_step, tr_loss = self.train(
-            train_dataset, output_dir, show_running_loss=show_running_loss, eval_data=eval_data, **kwargs
+            train_dataset, output_dir, show_running_loss=show_running_loss, eval_data=eval_data, test_data=test_data, **kwargs
         )
 
         self._save_model(model=self.model)
 
         logger.info(" Training of {} model complete. Saved to {}.".format(self.args.model_type, output_dir))
 
-    def train(self, train_dataset, output_dir, show_running_loss=True, eval_data=None, verbose=True, **kwargs):
+    def train(self, train_dataset, output_dir, show_running_loss=True, eval_data=None, test_data=None, verbose=True, **kwargs):
         """
         Trains the model on train_dataset.
 
@@ -373,7 +373,7 @@ class NERModel:
             training_progress_scores = self._create_training_progress_scores(**kwargs)
         if args.wandb_project:
             wandb.init(project=args.wandb_project, config={**asdict(args)}, **args.wandb_kwargs)
-            wandb.watch(self.model)
+            wandb.watch(self.model, log=None)
 
         if args.fp16:
             from torch.cuda import amp
@@ -482,6 +482,13 @@ class NERModel:
                             output_dir=output_dir_current,
                             **kwargs,
                         )
+                        test_results, _, _ = self.eval_model(
+                            test_data,
+                            verbose=verbose and args.evaluate_during_training_verbose,
+                            wandb_log=False,
+                            output_dir=output_dir_current,
+                            **kwargs,
+                        )
                         for key, value in results.items():
                             tb_writer.add_scalar("eval_{}".format(key), value, global_step)
 
@@ -492,6 +499,8 @@ class NERModel:
                         training_progress_scores["train_loss"].append(current_loss)
                         for key in results:
                             training_progress_scores[key].append(results[key])
+                        for key in test_results:
+                            training_progress_scores['test_'+key].append(test_results[key])
                         report = pd.DataFrame(training_progress_scores)
                         report.to_csv(
                             os.path.join(args.output_dir, "training_progress_scores.csv"), index=False,
@@ -559,6 +568,9 @@ class NERModel:
                 results, _, _ = self.eval_model(
                     eval_data, verbose=verbose and args.evaluate_during_training_verbose, wandb_log=False, **kwargs
                 )
+                test_results, _, _ = self.eval_model(
+                    test_data, verbose=verbose and args.evaluate_during_training_verbose, wandb_log=False, **kwargs
+                )
 
                 self._save_model(output_dir_current, optimizer, scheduler, results=results)
 
@@ -566,6 +578,8 @@ class NERModel:
                 training_progress_scores["train_loss"].append(current_loss)
                 for key in results:
                     training_progress_scores[key].append(results[key])
+                for key in test_results:
+                    training_progress_scores['test_'+key].append(test_results[key])
                 report = pd.DataFrame(training_progress_scores)
                 report.to_csv(os.path.join(args.output_dir, "training_progress_scores.csv"), index=False)
 
@@ -1043,6 +1057,8 @@ class NERModel:
         return inputs
 
     def _create_training_progress_scores(self, **kwargs):
+        import collections
+        return collections.defaultdict(list)
         extra_metrics = {key: [] for key in kwargs}
         training_progress_scores = {
             "global_step": [],
