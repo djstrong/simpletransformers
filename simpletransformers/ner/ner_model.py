@@ -482,13 +482,7 @@ class NERModel:
                             output_dir=output_dir_current,
                             **kwargs,
                         )
-                        test_results, _, _ = self.eval_model(
-                            test_data,
-                            verbose=verbose and args.evaluate_during_training_verbose,
-                            wandb_log=False,
-                            output_dir=output_dir_current,
-                            **kwargs,
-                        )
+                        
                         for key, value in results.items():
                             tb_writer.add_scalar("eval_{}".format(key), value, global_step)
 
@@ -499,8 +493,18 @@ class NERModel:
                         training_progress_scores["train_loss"].append(current_loss)
                         for key in results:
                             training_progress_scores[key].append(results[key])
-                        for key in test_results:
-                            training_progress_scores['test_'+key].append(test_results[key])
+
+                        if test_data:
+                            test_results, _, _ = self.eval_model(
+                                test_data,
+                                verbose=verbose and args.evaluate_during_training_verbose,
+                                wandb_log=False,
+                                output_dir=output_dir_current,
+                                **kwargs,
+                            )
+                            for key in test_results:
+                                training_progress_scores['test_'+key].append(test_results[key])
+                        
                         report = pd.DataFrame(training_progress_scores)
                         report.to_csv(
                             os.path.join(args.output_dir, "training_progress_scores.csv"), index=False,
@@ -568,9 +572,7 @@ class NERModel:
                 results, _, _ = self.eval_model(
                     eval_data, verbose=verbose and args.evaluate_during_training_verbose, wandb_log=False, **kwargs
                 )
-                test_results, _, _ = self.eval_model(
-                    test_data, verbose=verbose and args.evaluate_during_training_verbose, wandb_log=False, **kwargs
-                )
+                
 
                 self._save_model(output_dir_current, optimizer, scheduler, results=results)
 
@@ -578,8 +580,14 @@ class NERModel:
                 training_progress_scores["train_loss"].append(current_loss)
                 for key in results:
                     training_progress_scores[key].append(results[key])
-                for key in test_results:
-                    training_progress_scores['test_'+key].append(test_results[key])
+
+                if test_data:
+                    test_results, _, _ = self.eval_model(
+                        test_data, verbose=verbose and args.evaluate_during_training_verbose, wandb_log=False, **kwargs
+                    )
+                    for key in test_results:
+                        training_progress_scores['test_'+key].append(test_results[key])
+                
                 report = pd.DataFrame(training_progress_scores)
                 report.to_csv(os.path.join(args.output_dir, "training_progress_scores.csv"), index=False)
 
