@@ -667,7 +667,7 @@ class ClassificationModel:
             if not wandb.setup().settings.sweep_id:
                 logger.info(" Initializing WandB run for training.")
                 wandb.init(project=args.wandb_project, config={**asdict(args)}, **args.wandb_kwargs)
-            wandb.watch(self.model)
+            wandb.watch(self.model, log=None)
 
         if self.args.fp16:
             from torch.cuda import amp
@@ -784,7 +784,8 @@ class ClassificationModel:
                         test_results, _, _ = self.eval_model(
                             test_df,
                             verbose=verbose and args.evaluate_during_training_verbose,
-                            silent=True,
+                            silent=args.evaluate_during_training_silent,
+                            wandb_log=False,
                             **kwargs,
                         )
                         for key in test_results:
@@ -881,9 +882,14 @@ class ClassificationModel:
                     training_progress_scores[key].append(results[key])
 
                 test_results, _, _ = self.eval_model(
-                    test_df, verbose=verbose and args.evaluate_during_training_verbose, silent=True, **kwargs
+                    test_df,
+                    verbose=verbose and args.evaluate_during_training_verbose,
+                    silent=args.evaluate_during_training_silent,
+                    wandb_log=False,
+                    **kwargs,
                 )
-                for key in results:
+
+                for key in test_results:
                     training_progress_scores['test_'+key].append(test_results[key])
                 
                 report = pd.DataFrame(training_progress_scores)
@@ -1665,8 +1671,8 @@ class ClassificationModel:
         return {metric: values[-1] for metric, values in metric_values.items()}
 
     def _create_training_progress_scores(self, multi_label, **kwargs):
-        import collections
-        return collections.defaultdict(list)
+        #import collections
+        #return collections.defaultdict(list)
         extra_metrics = {key: [] for key in kwargs}
         if multi_label:
             training_progress_scores = {
