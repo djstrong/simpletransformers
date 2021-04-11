@@ -1333,7 +1333,10 @@ class ClassificationModel:
 
         extra_metrics = {}
         for metric, func in kwargs.items():
-            extra_metrics[metric] = func(labels, preds)
+            if metric.startswith("prob_"):
+                extra_metrics[metric] = func(labels, model_outputs)
+            else:
+                extra_metrics[metric] = func(labels, preds)
 
         if multi_label:
             threshold_values = self.args.threshold if self.args.threshold else 0.5
