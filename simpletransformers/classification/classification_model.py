@@ -1396,7 +1396,7 @@ class ClassificationModel:
         else:
             return {**{"mcc": mcc}, **extra_metrics}, wrong
 
-    def predict(self, to_predict, multi_label=False):
+    def predict(self, to_predict, multi_label=False, dropout=False):
         """
         Performs predictions on a list of text.
 
@@ -1488,6 +1488,10 @@ class ClassificationModel:
 
             if self.config.output_hidden_states:
                 model.eval()
+                if dropout:
+                    for module in model.modules():
+                        if isinstance(module, torch.nn.Dropout):
+                            module.train()
                 preds = None
                 out_label_ids = None
                 for i, batch in enumerate(tqdm(eval_dataloader, disable=args.silent, desc="Running Prediction")):
@@ -1535,6 +1539,10 @@ class ClassificationModel:
                 n_batches = len(eval_dataloader)
                 for i, batch in enumerate(tqdm(eval_dataloader, disable=args.silent)):
                     model.eval()
+                    if dropout:
+                        for module in model.modules():
+                            if isinstance(module, torch.nn.Dropout):
+                                module.train()
                     # batch = tuple(t.to(device) for t in batch)
 
                     with torch.no_grad():
