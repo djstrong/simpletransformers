@@ -281,7 +281,7 @@ class NERModel:
             self.args.wandb_project = None
 
     def train_model(
-        self, train_data, output_dir=None, show_running_loss=True, args=None, eval_data=None, verbose=True, **kwargs
+        self, train_data, output_dir=None, show_running_loss=True, args=None, eval_data=None, test_data=None, verbose=True, **kwargs
     ):
         """
         Trains the model using 'train_data'
@@ -338,7 +338,7 @@ class NERModel:
         os.makedirs(output_dir, exist_ok=True)
 
         global_step, training_details = self.train(
-            train_dataset, output_dir, show_running_loss=show_running_loss, eval_data=eval_data, **kwargs
+            train_dataset, output_dir, show_running_loss=show_running_loss, eval_data=eval_data, test_data=test_data, **kwargs
         )
 
         self.save_model(model=self.model)
@@ -347,7 +347,7 @@ class NERModel:
 
         return global_step, training_details
 
-    def train(self, train_dataset, output_dir, show_running_loss=True, eval_data=None, verbose=True, **kwargs):
+    def train(self, train_dataset, output_dir, show_running_loss=True, eval_data=None, test_data=None, verbose=True, **kwargs):
         """
         Trains the model on train_dataset.
 
@@ -527,7 +527,7 @@ class NERModel:
             training_progress_scores = self._create_training_progress_scores(**kwargs)
         if args.wandb_project:
             wandb.init(project=args.wandb_project, config={**asdict(args)}, **args.wandb_kwargs)
-            wandb.watch(self.model)
+            wandb.watch(self.model, log=None)
 
         if self.args.fp16:
             from torch.cuda import amp
@@ -638,8 +638,11 @@ class NERModel:
                             **kwargs,
                         )
                         for key, value in results.items():
-                            tb_writer.add_scalar("eval_{}".format(key), value, global_step)
-
+                            try:
+                                tb_writer.add_scalar("eval_{}".format(key), value, global_step)
+                            except (NotImplementedError, AssertionError):
+                                pass
+                            
                         if args.save_eval_checkpoints:
                             self.save_model(output_dir_current, optimizer, scheduler, model=model, results=results)
 
@@ -647,6 +650,24 @@ class NERModel:
                         training_progress_scores["train_loss"].append(current_loss)
                         for key in results:
                             training_progress_scores[key].append(results[key])
+
+                        if test_data is not None:
+                            test_results, _, _ = self.eval_model(
+                                test_data,
+                                verbose=verbose and args.evaluate_during_training_verbose,
+                                wandb_log=False,
+                                output_dir=output_dir_current,
+                                **kwargs,
+                            )
+                            for key, value in test_results.items():
+                                try:
+                                    tb_writer.add_scalar("test_{}".format(key), value, global_step)
+                                except (NotImplementedError, AssertionError):
+                                    pass
+                                
+                            for key in test_results:
+                                training_progress_scores['test_'+key].append(test_results[key])
+                            
                         report = pd.DataFrame(training_progress_scores)
                         report.to_csv(
                             os.path.join(args.output_dir, "training_progress_scores.csv"), index=False,
@@ -658,12 +679,14 @@ class NERModel:
                         if not best_eval_metric:
                             best_eval_metric = results[args.early_stopping_metric]
                             self.save_model(args.best_model_dir, optimizer, scheduler, model=model, results=results)
+                            wandb.run.summary['best_model_step'] = global_step
                         if best_eval_metric and args.early_stopping_metric_minimize:
                             if results[args.early_stopping_metric] - best_eval_metric < args.early_stopping_delta:
                                 best_eval_metric = results[args.early_stopping_metric]
                                 self.save_model(
                                     args.best_model_dir, optimizer, scheduler, model=model, results=results
                                 )
+                                wandb.run.summary['best_model_step'] = global_step
                                 early_stopping_counter = 0
                             else:
                                 if args.use_early_stopping:
@@ -690,6 +713,7 @@ class NERModel:
                                 self.save_model(
                                     args.best_model_dir, optimizer, scheduler, model=model, results=results
                                 )
+                                wandb.run.summary['best_model_step'] = global_step
                                 early_stopping_counter = 0
                             else:
                                 if args.use_early_stopping:
@@ -732,6 +756,15 @@ class NERModel:
                 training_progress_scores["train_loss"].append(current_loss)
                 for key in results:
                     training_progress_scores[key].append(results[key])
+
+                if test_data is not None:
+                    test_results, _, _ = self.eval_model(
+                        test_data, verbose=verbose and args.evaluate_during_training_verbose, wandb_log=False, **kwargs
+                    )
+    
+                    for key in test_results:
+                        training_progress_scores['test_' + key].append(test_results[key])
+                    
                 report = pd.DataFrame(training_progress_scores)
                 report.to_csv(os.path.join(args.output_dir, "training_progress_scores.csv"), index=False)
 
@@ -741,10 +774,12 @@ class NERModel:
                 if not best_eval_metric:
                     best_eval_metric = results[args.early_stopping_metric]
                     self.save_model(args.best_model_dir, optimizer, scheduler, model=model, results=results)
+                    wandb.run.summary['best_model_step'] = global_step
                 if best_eval_metric and args.early_stopping_metric_minimize:
                     if results[args.early_stopping_metric] - best_eval_metric < args.early_stopping_delta:
                         best_eval_metric = results[args.early_stopping_metric]
                         self.save_model(args.best_model_dir, optimizer, scheduler, model=model, results=results)
+                        wandb.run.summary['best_model_step'] = global_step
                         early_stopping_counter = 0
                     else:
                         if args.use_early_stopping and args.early_stopping_consider_epochs:
@@ -769,6 +804,7 @@ class NERModel:
                     if results[args.early_stopping_metric] - best_eval_metric > args.early_stopping_delta:
                         best_eval_metric = results[args.early_stopping_metric]
                         self.save_model(args.best_model_dir, optimizer, scheduler, model=model, results=results)
+                        wandb.run.summary['best_model_step'] = global_step
                         early_stopping_counter = 0
                         early_stopping_counter = 0
                     else:
@@ -924,7 +960,10 @@ class NERModel:
 
         extra_metrics = {}
         for metric, func in kwargs.items():
-            extra_metrics[metric] = func(out_label_list, preds_list)
+            if metric.startswith("prob_"):
+                extra_metrics[metric] = func(out_label_list, model_outputs)
+            else:
+                extra_metrics[metric] = func(out_label_list, preds_list)
 
         result = {
             "eval_loss": eval_loss,
@@ -1331,6 +1370,8 @@ class NERModel:
         return inputs
 
     def _create_training_progress_scores(self, **kwargs):
+        import collections
+        return collections.defaultdict(list)
         extra_metrics = {key: [] for key in kwargs}
         training_progress_scores = {
             "global_step": [],
