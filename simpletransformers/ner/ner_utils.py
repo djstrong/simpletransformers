@@ -97,7 +97,7 @@ def read_examples_from_file(data_file, mode, bbox=False):
                         x1 = []
                         y1 = []
                 else:
-                    splits = line.split(" ")
+                    splits = line.split("\t")
                     words.append(splits[0])
                     if len(splits) > 1:
                         labels.append(splits[1].replace("\n", ""))
@@ -118,7 +118,7 @@ def read_examples_from_file(data_file, mode, bbox=False):
                         words = []
                         labels = []
                 else:
-                    splits = line.split(" ")
+                    splits = line.split("\t")
                     words.append(splits[0])
                     if len(splits) > 1:
                         labels.append(splits[-1].replace("\n", ""))
